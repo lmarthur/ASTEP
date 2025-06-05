@@ -30,6 +30,10 @@ The CCD calibration process follows these steps:
         e. Divide by the combined flat for the corresponding filter
         f. Apply pixel mask
         g. Remove cosmic rays
+
+# Notes
+    - None of the images appear to have overscan regions
+    - There are dark images that match the exposure times for the flats (10s) and for the science images (90s), so no rescaling of the darks seems to be necessary
     
 
 # TODO: 
@@ -38,10 +42,10 @@ The CCD calibration process follows these steps:
     - [X] Write tests for image combination
     - [X] Implement image combination function
     - [X] Implement image_out() function
-    - [ ] Determine whether dark images need rescaling
-    - [ ] Write tests for dark image rescaling
-    - [ ] Implement dark image rescaling function
-    - [ ] Implement image histogram plotting function
+    - [X] Determine whether dark images need rescaling
+    - [X] Implement image histogram plotting function
+    - [ ] Write tests for generate_mask()
+    - [ ] Implement generate_mask()
     - [ ] Write tests for cosmic ray removal?
     - [ ] Implement cosmic ray removal function
     - [ ] Write integration tests

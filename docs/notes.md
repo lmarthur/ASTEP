@@ -9,3 +9,9 @@
 - Creating a pixel mask?
 - Frame alignment?
 - Hasler paper does not use flat corrections--says there were no flats available
+
+## Notes from Onboarding Meeting
+- kbmod package
+- run tychotracker on windows machines
+- Artem suggests that I try using it
+- Tracker downloads minor planet orbits or queries JPL horizons
