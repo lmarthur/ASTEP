@@ -1,0 +1,19 @@
+# zipped data
+*.zip
+
+# data files
+data/
+
+# mac files
+.DS_Store
+
+# python cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# test data outputs
+test_data/*.jpg
+
+# unnecessary scripts
+src/check_overscan.py
