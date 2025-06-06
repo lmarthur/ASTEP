@@ -13,7 +13,7 @@ __pycache__/
 .pytest_cache/
 
 # test data outputs
-test_data/*.jpg
+test/test_data/*.jpg
 
 # unnecessary scripts
 src/check_overscan.py
