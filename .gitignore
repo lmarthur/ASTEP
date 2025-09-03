@@ -17,3 +17,6 @@ test/test_data/*.jpg
 
 # unnecessary scripts
 src/check_overscan.py
+
+# sandboxing notebook
+src/sandbox.ipynb

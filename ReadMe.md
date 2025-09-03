@@ -13,7 +13,8 @@ The CCD calibration process follows these steps:
         b. Trim the overscan regions, if present
         c. If necessary, scale the dark images to match the exposure times (requires subtracting the bias)
     4. Combine the calibrated dark images
-    5. Create a pixel mask
+    5. Create a pixel mask?
+        a. Note that the flat images appear to all be of the same exposure time
     6. Calibrate the flat images
         a. If you are subtracting overscan, do this for the flat images
         b. Trim the overscan regions, if present
@@ -45,10 +46,11 @@ The CCD calibration process follows these steps:
     - [X] Determine whether dark images need rescaling
     - [X] Implement image histogram plotting function
     - [ ] Write tests for generate_mask()
-    - [ ] Implement generate_mask()
+    - [X] Implement generate_mask()
     - [ ] Write tests for cosmic ray removal?
     - [ ] Implement cosmic ray removal function
     - [ ] Write integration tests
+        - [ ] Test that noise is reduced by combining darks
     - [ ] Calibrate first batch of science images
     - [ ] Find potential object detection algorithms
     - [ ] Write synthetic tracking package?
