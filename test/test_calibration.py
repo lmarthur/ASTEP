@@ -1,4 +1,7 @@
 import pytest
+import ccdproc as ccdp
+import astropy.units as u
+from astropy.nddata import CCDData
 
 # add parent directory to path
 import sys
@@ -38,3 +41,29 @@ def test_image_combine():
     # Check if the unit is preserved
     assert combined_image_median.unit == 'adu'
 
+def test_generate_mask():
+    from src.calibration import generate_mask
+
+    flat_images = ccdp.ImageFileCollection("data/2012-06-04-CAMS_SKYFLAT")
+    
+    pixel_mask = generate_mask(flat_images, path="data/2012-06-04-CAMS_SKYFLAT")
+
+    # Check if the output is a CCDData object
+    assert isinstance(pixel_mask, CCDData)
+
+    # TODO: Add more thorough checks to the pixel mask
+
+def test_remove_cosmic_rays():
+    # Note that to effectively test this function, the images must first be calibrated and masks must be applied. 
+    from src.calibration import remove_cosmic_rays
+
+    # Load an example image
+    science_image = CCDData.read('data/2012-06-04-CAMS/2012-06-04_17.23.54_SCIENCE.fits', unit=u.adu)
+
+    # Remove cosmic rays from the science image
+    cleaned_image = remove_cosmic_rays(science_image, readnoise=5.0, sigclip=3.0)
+
+    # Check if the output is a CCDData object
+    assert isinstance(cleaned_image, CCDData)
+
+    # TODO: Add more thorough checks to the cosmic ray removal
