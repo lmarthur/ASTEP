@@ -2,7 +2,8 @@ from astropy.nddata import CCDData
 from astropy.visualization import hist
 from astropy import units as u
 import ccdproc as ccdp
-from utils import image_out
+
+# TODO: Add ability to suppress stdout when running test suite
 
 def image_combine(images, method='average', sigma_clip=True, sigma=3.0):
     """
@@ -56,7 +57,7 @@ def generate_mask(flat_images,  path=None):
 
     # Get the image with the highest mean value
     brightest_flat = max(flat_images.hdus(ACQTYPE='SKYFLAT'), key=lambda x: x.data.mean())
-    print("Brightest flat image:", brightest_flat.header['ORIGFILE'], "with mean", brightest_flat.data.mean())
+    print("\nBrightest flat image:", brightest_flat.header['ORIGFILE'], "with mean", brightest_flat.data.mean())
 
     # Get the darkest flat image
     darkest_flat = min(flat_images.hdus(ACQTYPE='SKYFLAT'), key=lambda x: x.data.mean())
@@ -85,5 +86,37 @@ def generate_mask(flat_images,  path=None):
 
     return mask_as_ccd
 
+def remove_cosmic_rays(image, readnoise, sigclip, verbose=True):
+    """
+    Remove cosmic rays from a CCDData image using the ccdproc.cosmicray_lacosmic function.
+
+    INPUTS:
+    ------------------
+    image: CCDData
+        The CCDData image from which cosmic rays will be removed.
+
+    readnoise: float
+        The read noise of the CCD.
+
+    sigclip: float
+        The sigma clipping threshold for identifying cosmic rays.
+
+    verbose: bool
+        Whether to print verbose output during the cosmic ray removal process.
+
+    OUTPUTS:
+    ------------------
+    cleaned_image: CCDData
+        The CCDData image with cosmic rays removed.
     
+    """
+
+    # TODO: Add verification step to ensure the appropriate units
+
+    # Check for BUNIT, bunit, unit in the header
+    if image.header.get('BUNIT') is None and image.header.get('bunit') is None and image.unit is None:
+        raise ValueError("Input image must have a unit.")
+
+    cleaned_image = ccdp.cosmicray_lacosmic(image, readnoise=readnoise, sigclip=sigclip, verbose=verbose)
+    return cleaned_image
 

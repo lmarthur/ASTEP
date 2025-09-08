@@ -1,6 +1,40 @@
 import matplotlib.pyplot as plt
 from astropy.nddata import CCDData
 from astropy.visualization import hist
+import astropy.units as u
+
+def convert_to_electrons(imagecollection, gain):
+    """
+    Convert a collection of CCDData images from ADU to electrons using the specified gain.
+
+    INPUTS:
+    ------------------
+    imagecollection: ccdproc.ImageFileCollection
+        A collection of CCDData images to be converted.
+    
+    gain: float
+        The gain value (electrons per ADU) to use for the conversion.
+
+    OUTPUTS:
+    ------------------
+    converted_images: list of CCDData
+        A list of CCDData images converted to ADU.
+    """
+    if gain <= 0:
+        raise ValueError("Gain must be a positive number.")
+
+    # TODO: Add check step to ensure that units are currently in ADU
+
+    converted_images = []
+    for img in imagecollection.hdus():
+        if not isinstance(img, CCDData):
+            raise TypeError("All items in the image collection must be CCDData objects.")
+        img_electrons = img.copy()
+        img_electrons.data = img.data * gain
+        img_electrons.unit = u.electron  # Update the unit to electrons
+        converted_images.append(img_electrons)
+
+    return converted_images
 
 def image_out(image, path):
     """
