@@ -20,3 +20,6 @@ src/check_overscan.py
 
 # sandboxing notebook
 src/sandbox.ipynb
+
+# test log
+test/test.log

@@ -35,6 +35,8 @@ The CCD calibration process follows these steps:
 # Notes
     - None of the images appear to have overscan regions
     - There are dark images that match the exposure times for the flats (10s) and for the science images (90s), so no rescaling of the darks seems to be necessary
+    - Should verify the units of the fits files to ensure that they are being handled correctly
+    - Currently only have a mask for bad pixels, not for hot pixels. Hot pixel problems should be mitigated by sigma clipping, but a better method could be valuable
     
 
 # TODO: 
@@ -45,10 +47,10 @@ The CCD calibration process follows these steps:
     - [X] Implement image_out() function
     - [X] Determine whether dark images need rescaling
     - [X] Implement image histogram plotting function
-    - [ ] Write tests for generate_mask()
+    - [X] Write tests for generate_mask()
     - [X] Implement generate_mask()
-    - [ ] Write tests for cosmic ray removal?
-    - [ ] Implement cosmic ray removal function
+    - [X] Write tests for cosmic ray removal?
+    - [X] Implement cosmic ray removal function
     - [ ] Write integration tests
         - [ ] Test that noise is reduced by combining darks
     - [ ] Calibrate first batch of science images
