@@ -7,4 +7,6 @@ if [[ "$CONDA_DEFAULT_ENV" != "astep" ]]; then
 fi
 
 echo "Running unit tests..."
-pytest -v -s ./test/
+# run pytest
+
+pytest -vs ./test/ --disable-warnings
