@@ -23,3 +23,8 @@ src/sandbox.ipynb
 
 # test log
 test/test.log
+
+# Everything in docs/schematic except the .tex and .pdf files
+docs/schematic/*
+!docs/schematic/schematic.tex
+!docs/schematic/schematic.pdf

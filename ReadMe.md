@@ -37,22 +37,26 @@ The CCD calibration process follows these steps:
     - There are dark images that match the exposure times for the flats (10s) and for the science images (90s), so no rescaling of the darks seems to be necessary
     - Should verify the units of the fits files to ensure that they are being handled correctly
     - Currently only have a mask for bad pixels, not for hot pixels. Hot pixel problems should be mitigated by sigma clipping, but a better method could be valuable
+
+# Meeting w/ Sammy and Emily
+    - Whaty goes into Tycho, and what comes out?
+    - Grouping images to send to Tycho based on the object velocity (faster objects, want more images)
+    - Tycho feeds out coordinates of detected object, speed, SNR, etc.
+    - Other code checks the Tycho output, attempts to predict location of 
+    - Q: Alignment? 'Bad images'?
     
 
 # TODO: 
-    - [X] Determine whether there is an overscan region
-    - [X] Create conda env
-    - [X] Write tests for image combination
-    - [X] Implement image combination function
-    - [X] Implement image_out() function
-    - [X] Determine whether dark images need rescaling
-    - [X] Implement image histogram plotting function
-    - [X] Write tests for generate_mask()
-    - [X] Implement generate_mask()
-    - [X] Write tests for cosmic ray removal?
-    - [X] Implement cosmic ray removal function
-    - [ ] Write integration tests
-        - [ ] Test that noise is reduced by combining darks
-    - [ ] Calibrate first batch of science images
-    - [ ] Find potential object detection algorithms
-    - [ ] Write synthetic tracking package?
+- [X] Rewrite combine_darks() and combine_bias() to use lists of CCDData objects instead of ImageFileCollection objects
+- [X] Write loop to combine dark images of a certain exptime
+- [X] Add runtime check to ensure that dark frames match the science exposures
+- [X] Remove the for each exposure time loop in the generate flat function
+- [X] Update export filenames for master biases and master darks
+- [X] Separate out skyflat procedure based on filter
+- [X] Implement skyflat function
+- [X] Either convert all FITS files to e- units, or convert LACosmic routine to use units of ADU
+- [X] Add LACosmic to pipeline
+- [X] Chain everything together
+- [X] Remove hardcoded memory limits
+- [ ] Integrate with astrometry.net for astrometric calibration
+- [ ] Integrate with MPC API

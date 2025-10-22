@@ -8,6 +8,15 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
+# Suppress Astropy warnings for cleaner output
+import warnings
+from astropy.utils.exceptions import AstropyWarning
+warnings.simplefilter('ignore', category=AstropyWarning)
+
+# suppress all logging messages during tests
+import logging
+logging.disable(logging.CRITICAL)
+
 def test_image_combine():
     # Mock CCDData images for testing
     from astropy.nddata import CCDData
@@ -44,9 +53,8 @@ def test_image_combine():
 def test_generate_mask():
     from src.calibration import generate_mask
 
-    flat_images = ccdp.ImageFileCollection("data/2012-06-04-CAMS_SKYFLAT")
-    
-    pixel_mask = generate_mask(flat_images, path="data/2012-06-04-CAMS_SKYFLAT")
+    # Generate a pixel mask from example flat field images
+    pixel_mask = generate_mask('data/2012-06-04-CAMS_SKYFLAT')
 
     # Check if the output is a CCDData object
     assert isinstance(pixel_mask, CCDData)
@@ -61,7 +69,7 @@ def test_remove_cosmic_rays():
     science_image = CCDData.read('data/2012-06-04-CAMS/2012-06-04_17.23.54_SCIENCE.fits', unit=u.adu)
 
     # Remove cosmic rays from the science image
-    cleaned_image = remove_cosmic_rays(science_image, readnoise=5.0, sigclip=3.0)
+    cleaned_image = remove_cosmic_rays(science_image, readnoise=10.0, sigclip=5.0)
 
     # Check if the output is a CCDData object
     assert isinstance(cleaned_image, CCDData)

@@ -9,4 +9,4 @@ fi
 echo "Running unit tests..."
 # run pytest
 
-pytest -vs ./test/ --disable-warnings
+pytest -vs ./test/ --disable-warnings --log-cli-level=INFO
