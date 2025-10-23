@@ -38,14 +38,6 @@ The CCD calibration process follows these steps:
     - Should verify the units of the fits files to ensure that they are being handled correctly
     - Currently only have a mask for bad pixels, not for hot pixels. Hot pixel problems should be mitigated by sigma clipping, but a better method could be valuable
 
-# Meeting w/ Sammy and Emily
-    - Whaty goes into Tycho, and what comes out?
-    - Grouping images to send to Tycho based on the object velocity (faster objects, want more images)
-    - Tycho feeds out coordinates of detected object, speed, SNR, etc.
-    - Other code checks the Tycho output, attempts to predict location of 
-    - Q: Alignment? 'Bad images'?
-    
-
 # TODO: 
 - [X] Rewrite combine_darks() and combine_bias() to use lists of CCDData objects instead of ImageFileCollection objects
 - [X] Write loop to combine dark images of a certain exptime
@@ -58,5 +50,5 @@ The CCD calibration process follows these steps:
 - [X] Add LACosmic to pipeline
 - [X] Chain everything together
 - [X] Remove hardcoded memory limits
-- [ ] Integrate with astrometry.net for astrometric calibration
+- [X] Integrate with astrometry.net for astrometric calibration
 - [ ] Integrate with MPC API
