@@ -51,4 +51,9 @@ The CCD calibration process follows these steps:
 - [X] Chain everything together
 - [X] Remove hardcoded memory limits
 - [X] Integrate with astrometry.net for astrometric calibration
+- [X] Move uncalibrated header to calibrated header
+- [ ] Write calibration scripts
+- [ ] Move main() to calibrate_night() function
+- [ ] Check for existing master darks and flats
+- [ ] Unit tests
 - [ ] Integrate with MPC API

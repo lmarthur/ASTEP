@@ -298,6 +298,7 @@ def calibrate_science_image(science_image, master_bias, master_dark, master_flat
     # Divide by the master flat
     if master_flat is not None:
         sci_cal = ccdp.flat_correct(sci_cal, master_flat)
+
     # Apply the mask if provided
     if mask is not None:
         sci_cal.mask = mask.data.astype(bool)

@@ -29,7 +29,7 @@ def main():
         # Search for subdirectories corresponding to the date
         science_dir = path + '/' + date + '-CAMS' 
         flat_dir = path + '/' + date + '-CAMS_SKYFLAT'
-        cal_path = path + '/' + date + '-CAMS_CALIBRATED'
+        cal_path = path + '/' + date + '-CAMS_CAL'
         Path(cal_path).mkdir(parents=True, exist_ok=True)
 
         # Calibrate the dark images
@@ -65,7 +65,9 @@ def main():
             readnoise = sci.header.get('RDNOISE', 9.0)  # Default to 9.0 if not found
             calibrated_science_image = remove_cosmic_rays(calibrated_science_image, readnoise, sigclip=7.0, verbose=False)
 
-            output_filename = cal_path + '/' + sci.header['ORIGFILE'].replace('.fits', '_CALIBRATED.fits')
+            output_filename = cal_path + '/' + sci.header['ORIGFILE'].replace('.fits', '_CAL.fits')
+            # Copy the header from the original image
+            calibrated_science_image.header = sci.header
             calibrated_science_image.write(output_filename, overwrite=True)
             print(f'Saved calibrated image to {output_filename}')
 
