@@ -27,8 +27,6 @@ def convert_to_electrons(imagecollection, gain):
 
     converted_images = []
     for img in imagecollection.hdus():
-        if not isinstance(img, CCDData):
-            raise TypeError("All items in the image collection must be CCDData objects.")
         img_electrons = img.copy()
         img_electrons.data = img.data * gain
         img_electrons.unit = u.electron  # Update the unit to electrons
