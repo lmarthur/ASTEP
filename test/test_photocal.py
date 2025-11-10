@@ -1,5 +1,3 @@
-import pytest
-import ccdproc as ccdp
 import astropy.units as u
 from astropy.nddata import CCDData
 import numpy as np

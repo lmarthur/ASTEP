@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-from astropy.nddata import CCDData
 from astropy.visualization import hist
 import astropy.units as u
 

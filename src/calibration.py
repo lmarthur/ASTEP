@@ -1,9 +1,9 @@
 from astropy.nddata import CCDData
-from astropy.visualization import hist
 from astropy import units as u
 from astropy.stats import mad_std
 import ccdproc as ccdp
-import os, sys
+import os
+import sys
 import numpy as np
 from pathlib import Path
 
