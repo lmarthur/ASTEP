@@ -123,19 +123,26 @@ def main():
             print(f"Skipping date {date}")
             continue
 
+        # Check for SKYFLAT directory (not required, but warn if missing)
+        skip_flat_correction = False
         if not flat_dir_path.exists():
-            print(f"ERROR: Flat directory not found: {flat_dir}")
-            print(f"Skipping date {date}")
-            continue
+            print(f"WARNING: Flat directory not found: {flat_dir}")
+            print(f"Flat field correction will be SKIPPED")
+            print(f"Proceeding with dark correction only")
+            skip_flat_correction = True
 
         # Check for required files
-        flat_dark_files = list(flat_dir_path.glob('*_DARK*.fits'))
         science_dark_files = list(science_dir_path.glob('*_DARK*.fits'))
         science_files = list(science_dir_path.glob('*_SCIENCE*.fits'))
-
-        # Check for bias files in both directories (for potential fallback)
         science_bias_files = list(science_dir_path.glob('*_BIAS*.fits'))
-        flat_bias_files = list(flat_dir_path.glob('*_BIAS*.fits'))
+
+        # Only check flat directory if it exists
+        if skip_flat_correction:
+            flat_dark_files = []
+            flat_bias_files = []
+        else:
+            flat_dark_files = list(flat_dir_path.glob('*_DARK*.fits'))
+            flat_bias_files = list(flat_dir_path.glob('*_BIAS*.fits'))
 
         # Check if science files exist
         if not science_files:
@@ -255,8 +262,27 @@ def main():
         print(f"Found {len(flat_dark_files) if flat_dark_files else 0} flat dark files")
         print(f"Found {len(science_dark_files) if science_dark_files else 0} science dark files")
         print(f"Found {len(science_files)} science files")
+
+        # Summary of corrections to be applied
+        print(f"\nCalibration plan:")
+        if skip_science_dark_correction and use_bias_correction:
+            print(f"  - Bias correction: YES (using fallback)")
+        elif skip_science_dark_correction:
+            print(f"  - Bias correction: NO (no bias frames available)")
+        else:
+            print(f"  - Bias correction: NO (included in dark frames)")
+
         if skip_science_dark_correction:
-            print(f"Note: Dark correction will be SKIPPED for science images")
+            print(f"  - Dark correction: NO (no matching dark frames)")
+        else:
+            print(f"  - Dark correction: YES")
+
+        if skip_flat_correction:
+            print(f"  - Flat correction: NO (no SKYFLAT directory)")
+        else:
+            print(f"  - Flat correction: YES")
+
+        print(f"  - Cosmic ray removal: YES")
 
         Path(cal_path).mkdir(parents=True, exist_ok=True)
 
@@ -298,11 +324,15 @@ def main():
         elif skip_science_dark_correction:
             print("Skipping master dark creation for science images (no matching darks available)")
 
-        # Generate master flat field from sky flats
-        flat_master = generate_flat(flat_dir, mem_limit=mem_limit)
-
-        # Create a pixel mask to flag bad pixels
-        mask = generate_mask(flat_dir)
+        # Generate master flat field from sky flats (only if not skipping flat correction)
+        flat_master = None
+        mask = None
+        if not skip_flat_correction:
+            flat_master = generate_flat(flat_dir, mem_limit=mem_limit)
+            # Create a pixel mask to flag bad pixels
+            mask = generate_mask(flat_dir)
+        else:
+            print("Skipping master flat generation (no SKYFLAT directory)")
 
         # ========================================
         # Step 4: Calibrate science images
