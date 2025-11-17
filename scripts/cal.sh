@@ -19,17 +19,45 @@
 ################################################################################
 
 # Configuration
-MEM_LIMIT_GB=2.0  # Memory limit in GB for photometric calibration
+# Auto-detect memory limit based on environment
+MEM_LIMIT_GB=2.0  # Default memory limit in GB for laptop/local use
+
+# Check if running on Engaging cluster with SLURM allocation
+if [[ -n "$SLURM_JOB_ID" ]]; then
+    echo "Detected SLURM job environment (Job ID: $SLURM_JOB_ID)"
+
+    # Check if high memory is allocated (SLURM_MEM_PER_NODE is in MB)
+    if [[ -n "$SLURM_MEM_PER_NODE" ]]; then
+        # Convert MB to GB and use 75% of allocated memory
+        ALLOCATED_GB=$(echo "scale=1; $SLURM_MEM_PER_NODE / 1024" | bc)
+        MEM_LIMIT_GB=$(echo "scale=1; $ALLOCATED_GB * 0.75" | bc)
+        echo "SLURM allocated memory: ${ALLOCATED_GB} GB"
+        echo "Setting memory limit to ${MEM_LIMIT_GB} GB (75% of allocation)"
+    elif [[ -n "$SLURM_MEM_PER_CPU" ]] && [[ -n "$SLURM_CPUS_ON_NODE" ]]; then
+        # Calculate total memory from per-CPU allocation
+        TOTAL_MEM_MB=$(echo "$SLURM_MEM_PER_CPU * $SLURM_CPUS_ON_NODE" | bc)
+        ALLOCATED_GB=$(echo "scale=1; $TOTAL_MEM_MB / 1024" | bc)
+        MEM_LIMIT_GB=$(echo "scale=1; $ALLOCATED_GB * 0.75" | bc)
+        echo "SLURM allocated memory: ${ALLOCATED_GB} GB (${SLURM_MEM_PER_CPU}MB × ${SLURM_CPUS_ON_NODE} CPUs)"
+        echo "Setting memory limit to ${MEM_LIMIT_GB} GB (75% of allocation)"
+    else
+        # Running on cluster but can't determine allocation, use conservative estimate
+        MEM_LIMIT_GB=8.0
+        echo "Running on SLURM cluster, setting memory limit to ${MEM_LIMIT_GB} GB"
+    fi
+fi
 
 # ========================================
 # Validate command-line arguments
 # ========================================
 if [ $# -lt 1 ]; then
     echo "Error: Data path not provided"
-    echo "Usage: $0 <data_path> [--force]"
+    echo "Usage: $0 <data_path> [OPTIONS]"
     echo "Example: $0 /path/to/data"
+    echo "         $0 /path/to/data --mem-limit 16.0"
     echo "Options:"
-    echo "  --force    Force recalibration even if calibrated files already exist"
+    echo "  --mem-limit LIMIT   Override memory limit in GB (default: auto-detect or 2.0)"
+    echo "  --force             Force recalibration even if calibrated files already exist"
     exit 1
 fi
 
@@ -37,11 +65,36 @@ fi
 DATA_PATH="$1"
 shift  # Remove data path from arguments, leaving optional flags
 
-# Check for --force flag in remaining arguments
+# Parse optional arguments
 FORCE_FLAG=""
-if [[ "$1" == "--force" ]]; then
-    FORCE_FLAG="--force"
-    echo "Force recalibration enabled"
+MEM_LIMIT_OVERRIDE=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --mem-limit)
+            if [[ -n "$2" && "$2" != --* ]]; then
+                MEM_LIMIT_OVERRIDE="$2"
+                echo "Memory limit manually overridden to ${MEM_LIMIT_OVERRIDE} GB"
+                shift 2
+            else
+                echo "Error: --mem-limit requires a numeric value"
+                exit 1
+            fi
+            ;;
+        --force)
+            FORCE_FLAG="--force"
+            echo "Force recalibration enabled"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+# Apply manual override if provided
+if [[ -n "$MEM_LIMIT_OVERRIDE" ]]; then
+    MEM_LIMIT_GB="$MEM_LIMIT_OVERRIDE"
 fi
 
 # ========================================

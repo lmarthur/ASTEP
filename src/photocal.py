@@ -11,6 +11,7 @@ already been calibrated (unless --force is specified).
 
 import astropy.units as u
 from astropy.nddata import CCDData
+from astropy.io import fits
 import numpy as np
 # import cpu time module to monitor performance
 import time
@@ -132,36 +133,130 @@ def main():
         science_dark_files = list(science_dir_path.glob('*_DARK*.fits'))
         science_files = list(science_dir_path.glob('*_SCIENCE*.fits'))
 
+        # Check for bias files in both directories (for potential fallback)
+        science_bias_files = list(science_dir_path.glob('*_BIAS*.fits'))
+        flat_bias_files = list(flat_dir_path.glob('*_BIAS*.fits'))
+
         # Check if science files exist
         if not science_files:
             print(f"ERROR: No SCIENCE files found in science directory: {science_dir}")
             print(f"Skipping date {date}")
             continue
 
-        # Fallback logic for dark frames
-        # If no dark frames in science directory, use the ones from flat directory
+        # Determine science image exposure times (using header only for efficiency)
+        science_exposure_times = set()
+        for sci_file in science_files:
+            try:
+                header = fits.getheader(sci_file)
+                exptime = header.get('EXPTIME')
+                if exptime is not None:
+                    science_exposure_times.add(exptime)
+            except Exception as e:
+                print(f"Warning: Could not read exposure time from {sci_file}: {e}")
+
+        # Flag to track whether we can perform dark correction
+        skip_science_dark_correction = False
+
+        # Fallback logic for science dark frames
         if not science_dark_files and flat_dark_files:
             print(f"WARNING: No DARK files found in science directory: {science_dir}")
-            print(f"Using DARK files from flat directory as fallback: {flat_dir}")
-            science_dark_files = flat_dark_files
-        elif not science_dark_files:
-            print(f"ERROR: No DARK files found in either directory")
-            print(f"Skipping date {date}")
-            continue
+            print(f"Checking DARK files from flat directory: {flat_dir}")
 
-        # Check if we have dark files for flats (or use science darks as fallback)
+            # Check flat dark exposure times (using header only for efficiency)
+            flat_dark_exposure_times = set()
+            for dark_file in flat_dark_files:
+                try:
+                    header = fits.getheader(dark_file)
+                    exptime = header.get('EXPTIME')
+                    if exptime is not None:
+                        flat_dark_exposure_times.add(exptime)
+                except Exception as e:
+                    print(f"Warning: Could not read exposure time from {dark_file}: {e}")
+
+            # Check if exposure times match
+            if science_exposure_times & flat_dark_exposure_times:
+                print(f"Exposure times match! Science: {science_exposure_times}s, Flat darks: {flat_dark_exposure_times}s")
+                print(f"Using DARK files from flat directory for science calibration")
+                science_dark_files = flat_dark_files
+            else:
+                print(f"WARNING: Exposure time mismatch!")
+                print(f"  Science exposure times: {science_exposure_times}s")
+                print(f"  Flat dark exposure times: {flat_dark_exposure_times}s")
+                print(f"Proceeding with calibration WITHOUT dark correction (bias and flat only)")
+                skip_science_dark_correction = True
+        elif not science_dark_files:
+            print(f"WARNING: No DARK files found in either directory")
+            print(f"Proceeding with calibration WITHOUT dark correction (bias and flat only)")
+            skip_science_dark_correction = True
+
+        # If skipping dark correction, check for bias frames as fallback
+        use_bias_correction = False
+        bias_files_for_science = []
+        if skip_science_dark_correction:
+            print(f"\nChecking for bias frames as fallback...")
+
+            # First check science directory for bias files
+            if science_bias_files:
+                bias_files_for_science = science_bias_files
+                print(f"Found {len(science_bias_files)} BIAS files in science directory")
+                use_bias_correction = True
+            # Fall back to flat directory bias files
+            elif flat_bias_files:
+                bias_files_for_science = flat_bias_files
+                print(f"Found {len(flat_bias_files)} BIAS files in flat directory")
+                print(f"Using BIAS files from flat directory as fallback")
+                use_bias_correction = True
+            else:
+                print(f"No BIAS files found in either directory")
+                print(f"Calibration will proceed with flat correction only (no dark, no bias)")
+
+        # Check if we have dark files for flats
         if not flat_dark_files and science_dark_files:
             print(f"WARNING: No DARK files found in flat directory: {flat_dir}")
-            print(f"Using DARK files from science directory as fallback: {science_dir}")
-            flat_dark_files = science_dark_files
-        elif not flat_dark_files:
-            print(f"ERROR: No DARK files found in either directory")
-            print(f"Skipping date {date}")
-            continue
 
-        print(f"Found {len(flat_dark_files)} flat dark files")
-        print(f"Found {len(science_dark_files)} science dark files")
+            # Get flat exposure times to check compatibility
+            flat_files = list(flat_dir_path.glob('*_SKYFLAT*.fits')) or list(flat_dir_path.glob('*_FLAT*.fits'))
+            flat_exposure_times = set()
+            for flat_file in flat_files[:5]:  # Sample first 5 files for efficiency
+                try:
+                    header = fits.getheader(flat_file)
+                    exptime = header.get('EXPTIME')
+                    if exptime is not None:
+                        flat_exposure_times.add(exptime)
+                except Exception as e:
+                    print(f"Warning: Could not read exposure time from {flat_file}: {e}")
+
+            # Get science dark exposure times
+            science_dark_exposure_times = set()
+            for dark_file in science_dark_files:
+                try:
+                    header = fits.getheader(dark_file)
+                    exptime = header.get('EXPTIME')
+                    if exptime is not None:
+                        science_dark_exposure_times.add(exptime)
+                except Exception as e:
+                    print(f"Warning: Could not read exposure time from {dark_file}: {e}")
+
+            # Check if exposure times are compatible
+            if flat_exposure_times & science_dark_exposure_times:
+                print(f"Exposure times compatible! Flat: {flat_exposure_times}s, Science darks: {science_dark_exposure_times}s")
+                print(f"Using DARK files from science directory for flat calibration")
+                flat_dark_files = science_dark_files
+            else:
+                print(f"WARNING: Exposure time mismatch for flat calibration")
+                print(f"  Flat exposure times: {flat_exposure_times}s")
+                print(f"  Science dark exposure times: {science_dark_exposure_times}s")
+                print(f"Flat calibration will proceed without dark correction")
+                # Leave flat_dark_files as empty list
+        elif not flat_dark_files:
+            print(f"WARNING: No DARK files found for flat calibration")
+            print(f"Flat calibration will proceed without dark correction")
+
+        print(f"Found {len(flat_dark_files) if flat_dark_files else 0} flat dark files")
+        print(f"Found {len(science_dark_files) if science_dark_files else 0} science dark files")
         print(f"Found {len(science_files)} science files")
+        if skip_science_dark_correction:
+            print(f"Note: Dark correction will be SKIPPED for science images")
 
         Path(cal_path).mkdir(parents=True, exist_ok=True)
 
@@ -169,24 +264,39 @@ def main():
         # Step 3: Create master calibration frames
         # ========================================
 
-        # Load and combine dark frames for both flat and science images
-        flat_dark_images = [CCDData.read(f, unit='adu') for f in flat_dark_files]
-        flat_dark_exposure_times = np.unique([dark.header['EXPTIME'] for dark in flat_dark_images])
-        print(f'Flat dark exposure times: {flat_dark_exposure_times}')
+        # Create master bias (only if using bias correction as fallback)
+        science_master_bias = None
+        if use_bias_correction and bias_files_for_science:
+            print(f"\nCreating master bias from {len(bias_files_for_science)} bias frames...")
+            bias_images = [CCDData.read(f, unit='adu') for f in bias_files_for_science]
+            science_master_bias = combine_bias(bias_images, mem_limit=mem_limit)
+            print(f"Master bias created successfully")
 
-        science_dark_images = [CCDData.read(f, unit='adu') for f in science_dark_files]
-        science_dark_exposure_times = np.unique([dark.header['EXPTIME'] for dark in science_dark_images])
-        print(f'Science dark exposure times: {science_dark_exposure_times}')
+        # Create master dark for flats (if available)
+        flat_master_dark = None
+        if flat_dark_files:
+            flat_dark_images = [CCDData.read(f, unit='adu') for f in flat_dark_files]
+            flat_dark_exposure_times = np.unique([dark.header['EXPTIME'] for dark in flat_dark_images])
+            print(f'Flat dark exposure times: {flat_dark_exposure_times}')
 
-        # Verify exposure time consistency
-        if len(science_dark_exposure_times) > 1:
-            print("Warning: Multiple exposure times found in science dark images. Ensure they are consistent.")
-        if len(flat_dark_exposure_times) > 1:
-            print("Warning: Multiple exposure times found in flat dark images. Ensure they are consistent.")
+            if len(flat_dark_exposure_times) > 1:
+                print("Warning: Multiple exposure times found in flat dark images. Ensure they are consistent.")
 
-        # Combine dark frames to create master darks
-        science_master_dark = combine_darks(science_dark_images, science_dir, mem_limit=mem_limit)
-        flat_master_dark = combine_darks(flat_dark_images, flat_dir, mem_limit=mem_limit)
+            flat_master_dark = combine_darks(flat_dark_images, flat_dir, mem_limit=mem_limit)
+
+        # Create master dark for science images (only if not skipping dark correction)
+        science_master_dark = None
+        if not skip_science_dark_correction and science_dark_files:
+            science_dark_images = [CCDData.read(f, unit='adu') for f in science_dark_files]
+            science_dark_exposure_times = np.unique([dark.header['EXPTIME'] for dark in science_dark_images])
+            print(f'Science dark exposure times: {science_dark_exposure_times}')
+
+            if len(science_dark_exposure_times) > 1:
+                print("Warning: Multiple exposure times found in science dark images. Ensure they are consistent.")
+
+            science_master_dark = combine_darks(science_dark_images, science_dir, mem_limit=mem_limit)
+        elif skip_science_dark_correction:
+            print("Skipping master dark creation for science images (no matching darks available)")
 
         # Generate master flat field from sky flats
         flat_master = generate_flat(flat_dir, mem_limit=mem_limit)
@@ -198,9 +308,13 @@ def main():
         # Step 4: Calibrate science images
         # ========================================
         science_images = [CCDData.read(f, unit='adu') for f in science_files]
-        for sci in science_images:
+        total_images = len(science_images)
+
+        for idx, sci in enumerate(science_images, start=1):
             # Apply bias, dark, and flat field corrections
-            calibrated_science_image = calibrate_science_image(sci, None, science_master_dark, master_flat=flat_master, mask=mask)
+            # Note: science_master_dark will be None if dark correction is skipped
+            # Note: science_master_bias will be None unless we're using bias as fallback
+            calibrated_science_image = calibrate_science_image(sci, science_master_bias, science_master_dark, master_flat=flat_master, mask=mask)
 
             # Convert from ADU to electrons using the gain factor
             gain = sci.header.get('GAIN', 2.0)  # Default to 2.0 if not found
@@ -214,7 +328,7 @@ def main():
             output_filename = cal_path + '/' + sci.header['ORIGFILE'].replace('.fits', '_CAL.fits')
             calibrated_science_image.header = sci.header  # Preserve original header
             calibrated_science_image.write(output_filename, overwrite=True)
-            print(f'Saved calibrated image to {output_filename}')
+            print(f'({idx}/{total_images}) Saved calibrated image to {output_filename}')
 
     end_time = time.time()
     print(f"Total processing time: {end_time - start_time:.2f} seconds")

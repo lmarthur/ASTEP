@@ -293,9 +293,17 @@ def calibrate_science_image(science_image, master_bias, master_dark, master_flat
         A calibrated CCDData science image.
     
     """
-    # Subtract the master dark
-    sci_cal = ccdp.subtract_dark(science_image, master_dark, exposure_time='EXPTIME', exposure_unit=u.second)
-    # Divide by the master flat
+    sci_cal = science_image
+
+    # Subtract the master bias (if provided)
+    if master_bias is not None:
+        sci_cal = ccdp.subtract_bias(sci_cal, master_bias)
+
+    # Subtract the master dark (if provided)
+    if master_dark is not None:
+        sci_cal = ccdp.subtract_dark(sci_cal, master_dark, exposure_time='EXPTIME', exposure_unit=u.second)
+
+    # Divide by the master flat (if provided)
     if master_flat is not None:
         sci_cal = ccdp.flat_correct(sci_cal, master_flat)
 
