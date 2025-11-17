@@ -1,6 +1,16 @@
 # ASTEP Small-body Harvest
 This repository contains code to calibrate and analyze data from the Antarctic Search for Transiting Exoplanets (ASTEP).
 
+## Quick Start
+
+To run the automated calibration pipeline:
+```bash
+mamba activate astep
+./scripts/cal.sh /path/to/data
+```
+
+For detailed usage instructions, see the [Calibration Guide](docs/calibration_guide.md).
+
 # Calibration
 The CCD calibration process follows these steps:
 
