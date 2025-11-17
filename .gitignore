@@ -28,3 +28,6 @@ test/test.log
 docs/schematic/*
 !docs/schematic/schematic.tex
 !docs/schematic/schematic.pdf
+
+# Ruff
+.ruff_cache/

@@ -1,0 +1,1 @@
+# This file contains code to perform shift-and-stack (synthetic tracking) on FITS files using KBMOD

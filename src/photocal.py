@@ -21,24 +21,57 @@ import argparse
 def main():
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description='Perform photometric calibration on ASTEP telescope images.')
-    parser.add_argument('dates', nargs='+', help='Date(s) to process in YYYY-MM-DD format (e.g., 2012-06-04)')
+    parser.add_argument('data_path', help='Path to the data directory containing date subdirectories')
     parser.add_argument('--mem-limit', type=float, default=2.0, help='Memory limit in GB (default: 2.0)')
+    parser.add_argument('--force', action='store_true', help='Force recalibration even if calibrated files already exist')
     args = parser.parse_args()
 
     start_time = time.time()
-    dates = args.dates  # Get dates from command-line arguments
+    data_path = args.data_path
     mem_limit = int(args.mem_limit * 1024**3)  # Convert GB to bytes
-    path = '/Users/lmarthur/Documents/Research/ASTEP/data'
-    print(f"\nMemory limit: {mem_limit}")
+
+    # Auto-discover dates by searching for date directories
+    data_path_obj = Path(data_path)
+    if not data_path_obj.exists():
+        print(f"ERROR: Data path does not exist: {data_path}")
+        return
+
+    # Find all directories that look like dates (YYYY-MM-DD format)
+    import re
+    date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+    dates = []
+    for item in sorted(data_path_obj.iterdir()):
+        if item.is_dir() and date_pattern.match(item.name):
+            dates.append(item.name)
+
+    if not dates:
+        print(f"No date subdirectories found in {data_path}")
+        print("Expected directories matching pattern: YYYY-MM-DD")
+        return
+
+    print(f"\nData path: {data_path}")
+    print(f"Memory limit: {mem_limit}")
+    print(f"Found {len(dates)} date(s) to process: {', '.join(dates)}")
     for date in dates:
         print(f"\n{'='*60}")
         print(f"Processing date: {date}")
         print(f"{'='*60}")
 
         # Search for subdirectories corresponding to the date
-        science_dir = path + '/' + date + '-CAMS'
-        flat_dir = path + '/' + date + '-CAMS_SKYFLAT'
-        cal_path = path + '/' + date + '-CAMS_CAL'
+        date_dir = data_path + '/' + date
+        science_dir = date_dir + '/' + date + '-CAMS'
+        flat_dir = date_dir + '/' + date + '-CAMS_SKYFLAT'
+        cal_path = date_dir + '/' + date + '-CAMS_CAL'
+
+        # Check if calibration already exists (unless --force is specified)
+        cal_path_obj = Path(cal_path)
+        if not args.force and cal_path_obj.exists():
+            # Check if there are already calibrated files
+            existing_cal_files = list(cal_path_obj.glob('*_SCIENCE_CAL.fits'))
+            if existing_cal_files:
+                print(f"Calibration already exists for {date} ({len(existing_cal_files)} calibrated files found)")
+                print(f"Skipping date {date} (use --force to recalibrate)")
+                continue
 
         # Check if required directories exist
         science_dir_path = Path(science_dir)
