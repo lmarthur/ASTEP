@@ -36,21 +36,23 @@ MEM_LIMIT_GB=2.0  # Default memory limit in GB for laptop/local use
 # Check if running on Engaging cluster with SLURM allocation
 if [[ -n "$SLURM_JOB_ID" ]]; then
     echo "Detected SLURM job environment (Job ID: $SLURM_JOB_ID)"
-
+    module load miniforge
+    source activate base
+    
     # Check if high memory is allocated (SLURM_MEM_PER_NODE is in MB)
     if [[ -n "$SLURM_MEM_PER_NODE" ]]; then
-        # Convert MB to GB and use 75% of allocated memory
+        # Convert MB to GB and use 25% of allocated memory
         ALLOCATED_GB=$(echo "scale=1; $SLURM_MEM_PER_NODE / 1024" | bc)
-        MEM_LIMIT_GB=$(echo "scale=1; $ALLOCATED_GB * 0.75" | bc)
+        MEM_LIMIT_GB=$(echo "scale=1; $ALLOCATED_GB * 0.25" | bc)
         echo "SLURM allocated memory: ${ALLOCATED_GB} GB"
-        echo "Setting memory limit to ${MEM_LIMIT_GB} GB (75% of allocation)"
+        echo "Setting memory limit to ${MEM_LIMIT_GB} GB (25% of allocation)"
     elif [[ -n "$SLURM_MEM_PER_CPU" ]] && [[ -n "$SLURM_CPUS_ON_NODE" ]]; then
         # Calculate total memory from per-CPU allocation
         TOTAL_MEM_MB=$(echo "$SLURM_MEM_PER_CPU * $SLURM_CPUS_ON_NODE" | bc)
         ALLOCATED_GB=$(echo "scale=1; $TOTAL_MEM_MB / 1024" | bc)
-        MEM_LIMIT_GB=$(echo "scale=1; $ALLOCATED_GB * 0.75" | bc)
+        MEM_LIMIT_GB=$(echo "scale=1; $ALLOCATED_GB * 0.25" | bc)
         echo "SLURM allocated memory: ${ALLOCATED_GB} GB (${SLURM_MEM_PER_CPU}MB × ${SLURM_CPUS_ON_NODE} CPUs)"
-        echo "Setting memory limit to ${MEM_LIMIT_GB} GB (75% of allocation)"
+        echo "Setting memory limit to ${MEM_LIMIT_GB} GB (25% of allocation)"
     else
         # Running on cluster but can't determine allocation, use conservative estimate
         MEM_LIMIT_GB=8.0
