@@ -140,7 +140,7 @@ echo "Current directory: $(pwd)"
 echo ""
 
 # Construct the command with optional flags
-CMD="./scripts/cal.sh \"$DATA_PATH\" --mem-limit $MEM_LIMIT $FORCE_FLAG"
+CMD="./scripts/full_calibration.sh \"$DATA_PATH\" --mem-limit $MEM_LIMIT $FORCE_FLAG"
 
 echo "==============================================="
 echo "Running calibration pipeline..."

@@ -140,7 +140,7 @@ SBATCH_CMD="sbatch \
   --time=$TIME_LIMIT \
   --output=$REPO_ROOT/logs/cal_${DATE_NAME}_%j.out \
   --error=$REPO_ROOT/logs/cal_${DATE_NAME}_%j.err \
-  --wrap=\"cd $REPO_ROOT && source \\\$(conda info --base)/etc/profile.d/conda.sh && conda activate astep && ./scripts/cal.sh $DATE_PATH --mem-limit $CAL_MEM_LIMIT $FORCE_FLAG\""
+  --wrap=\"cd $REPO_ROOT && source \\\$(conda info --base)/etc/profile.d/conda.sh && conda activate astep && ./scripts/full_calibration.sh $DATE_PATH --mem-limit $CAL_MEM_LIMIT $FORCE_FLAG\""
 
 if [ "$DRY_RUN" = true ]; then
     echo "DRY RUN - Would execute:"

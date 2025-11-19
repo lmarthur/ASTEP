@@ -4,13 +4,25 @@ This directory contains scripts for running the ASTEP calibration pipeline both 
 
 ## Scripts Overview
 
-### Core Calibration Script
+### Core Calibration Scripts
 
-- **`cal.sh`** - Main calibration pipeline script
-  - Runs photometric and astrometric calibration
+- **`full_calibration.sh`** - Complete calibration pipeline
+  - Runs both photometric and astrometric calibration
   - Can process all dates or a single specific date
-  - Automatically detects SLURM environment and adjusts memory limits
   - See script header for detailed usage
+
+- **`photocal.sh`** - Photometric calibration only
+  - Dark frame combination, flat field generation
+  - Science image calibration, cosmic ray removal
+  - Automatically detects SLURM environment and adjusts memory limits
+
+- **`astrocal.sh`** - Astrometric calibration only
+  - Uses Astrometry.net to solve WCS for calibrated images
+  - Requires photometric calibration to be completed first
+
+- **`cal.sh`** - Legacy script (deprecated)
+  - Original combined calibration script
+  - Use `full_calibration.sh` instead
 
 ### SLURM Submission Scripts
 
@@ -32,19 +44,29 @@ This directory contains scripts for running the ASTEP calibration pipeline both 
 
 ### Local Execution
 
-Process all dates in a directory:
+Process all dates in a directory (full calibration):
 ```bash
-./scripts/cal.sh /path/to/data
+./scripts/full_calibration.sh /path/to/data
 ```
 
 Process a single specific date:
 ```bash
-./scripts/cal.sh /path/to/data/2024-01-15
+./scripts/full_calibration.sh /path/to/data/2024-01-15
+```
+
+Run only photometric calibration:
+```bash
+./scripts/photocal.sh /path/to/data/2024-01-15
+```
+
+Run only astrometric calibration:
+```bash
+./scripts/astrocal.sh /path/to/data/2024-01-15
 ```
 
 With options:
 ```bash
-./scripts/cal.sh /path/to/data --mem-limit 16.0 --force
+./scripts/full_calibration.sh /path/to/data --mem-limit 16.0 --force
 ```
 
 ### SLURM Execution
@@ -161,9 +183,9 @@ Increase memory allocation:
 ./scripts/submit_single_date.sh /path/to/date --mem 32
 ```
 
-Or use the `--mem-limit` flag in cal.sh to reduce memory usage (slower):
+Or use the `--mem-limit` flag to reduce memory usage (slower):
 ```bash
-./scripts/cal.sh /path/to/date --mem-limit 8.0
+./scripts/full_calibration.sh /path/to/date --mem-limit 8.0
 ```
 
 ### Time Limit Exceeded

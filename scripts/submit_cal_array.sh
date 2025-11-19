@@ -199,7 +199,7 @@ echo "Running calibration pipeline..."
 echo "==============================================="
 echo ""
 
-./scripts/cal.sh "$DATA_PATH" --mem-limit $MEM_LIMIT $FORCE_FLAG
+./scripts/full_calibration.sh "$DATA_PATH" --mem-limit $MEM_LIMIT $FORCE_FLAG
 
 EXIT_STATUS=$?
 
