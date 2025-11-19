@@ -2,11 +2,18 @@
 Photometric Calibration Pipeline for ASTEP Telescope Images
 
 This script performs automated photometric calibration on ASTEP telescope images.
-It processes all dates found in the data directory, performing bias, dark, and flat
-field calibration, followed by cosmic ray removal.
+It can process either all dates found in a data directory, or a single specific
+date directory. Calibration includes bias, dark, and flat field corrections,
+followed by cosmic ray removal.
 
 The script automatically discovers date directories and skips dates that have
 already been calibrated (unless --force is specified).
+
+Usage:
+    python photocal.py /path/to/data                    # Process all dates
+    python photocal.py /path/to/data/2024-01-15         # Process specific date
+    python photocal.py /path/to/data --force            # Force reprocess all dates
+    python photocal.py /path/to/data --mem-limit 16.0   # Use 16GB memory limit
 """
 
 import astropy.units as u
@@ -33,13 +40,14 @@ def main():
     Main function to perform photometric calibration on ASTEP telescope images.
 
     This function:
-    1. Discovers all date directories in the provided data path
-    2. For each date, checks if calibration already exists (skips if it does, unless --force)
-    3. Combines bias and dark frames to create master calibration frames
-    4. Generates master flat field from sky flats
-    5. Applies calibration to science images
-    6. Removes cosmic rays from calibrated images
-    7. Saves calibrated images with '_CAL.fits' suffix
+    1. Detects if data_path is a specific date directory or parent containing dates
+    2. Discovers date(s) to process (single date or all dates)
+    3. For each date, checks if calibration already exists (skips if it does, unless --force)
+    4. Combines bias and dark frames to create master calibration frames
+    5. Generates master flat field from sky flats
+    6. Applies calibration to science images
+    7. Removes cosmic rays from calibrated images
+    8. Saves calibrated images with '_CAL.fits' suffix
 
     Expected directory structure:
         data_path/
@@ -49,13 +57,15 @@ def main():
             └── YYYY-MM-DD-CAMS_CAL/      (output: calibrated images)
 
     Command-line arguments:
-        data_path: Path to directory containing date subdirectories
+        data_path: Either:
+                   - Path to directory containing date subdirectories (YYYY-MM-DD)
+                   - Path to a specific date directory (YYYY-MM-DD)
         --mem-limit: Memory limit in GB (default: 2.0)
         --force: Force recalibration even if output files exist
     """
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description='Perform photometric calibration on ASTEP telescope images.')
-    parser.add_argument('data_path', help='Path to the data directory containing date subdirectories')
+    parser.add_argument('data_path', help='Path to data directory (containing date subdirectories) or specific date directory (YYYY-MM-DD)')
     parser.add_argument('--mem-limit', type=float, default=2.0, help='Memory limit in GB (default: 2.0)')
     parser.add_argument('--force', action='store_true', help='Force recalibration even if calibrated files already exist')
     args = parser.parse_args()
@@ -72,14 +82,24 @@ def main():
         print(f"ERROR: Data path does not exist: {data_path}")
         return
 
-    # Find all directories that match the date pattern YYYY-MM-DD
-    # This allows the script to automatically process all available dates
+    # Check if the provided path is itself a date directory or a parent containing date directories
     import re
     date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
-    dates = []
-    for item in sorted(data_path_obj.iterdir()):
-        if item.is_dir() and date_pattern.match(item.name):
-            dates.append(item.name)
+
+    # If the provided path itself is a date directory, process only that date
+    if date_pattern.match(data_path_obj.name):
+        print(f"Detected specific date directory: {data_path_obj.name}")
+        dates = [data_path_obj.name]
+        # Adjust data_path to be the parent directory
+        data_path = str(data_path_obj.parent)
+        data_path_obj = data_path_obj.parent
+    else:
+        # Find all directories that match the date pattern YYYY-MM-DD
+        # This allows the script to automatically process all available dates
+        dates = []
+        for item in sorted(data_path_obj.iterdir()):
+            if item.is_dir() and date_pattern.match(item.name):
+                dates.append(item.name)
 
     if not dates:
         print(f"No date subdirectories found in {data_path}")
@@ -199,17 +219,20 @@ def main():
         # If skipping dark correction, check for bias frames as fallback
         use_bias_correction = False
         bias_files_for_science = []
+        bias_dir_for_science = None  # Track which directory bias files came from
         if skip_science_dark_correction:
             print(f"\nChecking for bias frames as fallback...")
 
             # First check science directory for bias files
             if science_bias_files:
                 bias_files_for_science = science_bias_files
+                bias_dir_for_science = science_dir
                 print(f"Found {len(science_bias_files)} BIAS files in science directory")
                 use_bias_correction = True
             # Fall back to flat directory bias files
             elif flat_bias_files:
                 bias_files_for_science = flat_bias_files
+                bias_dir_for_science = flat_dir
                 print(f"Found {len(flat_bias_files)} BIAS files in flat directory")
                 print(f"Using BIAS files from flat directory as fallback")
                 use_bias_correction = True
@@ -295,7 +318,7 @@ def main():
         if use_bias_correction and bias_files_for_science:
             print(f"\nCreating master bias from {len(bias_files_for_science)} bias frames...")
             bias_images = [CCDData.read(f, unit='adu') for f in bias_files_for_science]
-            science_master_bias = combine_bias(bias_images, mem_limit=mem_limit)
+            science_master_bias = combine_bias(bias_images, bias_dir_for_science, mem_limit=mem_limit)
             print(f"Master bias created successfully")
 
         # Create master dark for flats (if available)
@@ -337,10 +360,13 @@ def main():
         # ========================================
         # Step 4: Calibrate science images
         # ========================================
-        science_images = [CCDData.read(f, unit='adu') for f in science_files]
-        total_images = len(science_images)
+        # Process science images ONE AT A TIME to minimize memory usage
+        total_images = len(science_files)
 
-        for idx, sci in enumerate(science_images, start=1):
+        for idx, sci_file in enumerate(science_files, start=1):
+            # Load one science image at a time
+            sci = CCDData.read(sci_file, unit='adu')
+
             # Apply bias, dark, and flat field corrections
             # Note: science_master_dark will be None if dark correction is skipped
             # Note: science_master_bias will be None unless we're using bias as fallback

@@ -4,18 +4,29 @@
 # ASTEP Calibration Pipeline - Master Script
 #
 # This script performs both photometric and astrometric calibration on ASTEP
-# telescope images. It automatically discovers all date directories in the
-# provided data path and processes them sequentially.
+# telescope images. It can process either all date directories in a data path
+# or a single specific date directory.
 #
-# Usage: ./cal.sh <data_path> [--force]
+# Usage: ./cal.sh <data_path> [OPTIONS]
 #
 # Arguments:
-#   data_path: Path to directory containing date subdirectories (YYYY-MM-DD)
-#   --force:   Optional flag to force recalibration even if already done
+#   data_path: Either:
+#              - Path to directory containing date subdirectories (YYYY-MM-DD)
+#              - Path to a specific date directory (YYYY-MM-DD)
+#
+# Options:
+#   --mem-limit LIMIT   Override memory limit in GB (default: auto-detect or 2.0)
+#   --force             Force recalibration even if already done
 #
 # The script performs two main steps:
 #   1. Photometric calibration (Python script)
 #   2. Astrometric calibration (Astrometry.net solve-field)
+#
+# Examples:
+#   ./cal.sh /path/to/data                    # Process all dates
+#   ./cal.sh /path/to/data/2024-01-15         # Process specific date
+#   ./cal.sh /path/to/data --force            # Force reprocess all dates
+#   ./cal.sh /path/to/data --mem-limit 16.0   # Use 16GB memory limit
 ################################################################################
 
 # Configuration
@@ -53,11 +64,20 @@ fi
 if [ $# -lt 1 ]; then
     echo "Error: Data path not provided"
     echo "Usage: $0 <data_path> [OPTIONS]"
-    echo "Example: $0 /path/to/data"
-    echo "         $0 /path/to/data --mem-limit 16.0"
+    echo ""
+    echo "Arguments:"
+    echo "  data_path           Path to data directory (containing date subdirectories)"
+    echo "                      or specific date directory (YYYY-MM-DD)"
+    echo ""
     echo "Options:"
     echo "  --mem-limit LIMIT   Override memory limit in GB (default: auto-detect or 2.0)"
     echo "  --force             Force recalibration even if calibrated files already exist"
+    echo ""
+    echo "Examples:"
+    echo "  $0 /path/to/data"
+    echo "  $0 /path/to/data/2024-01-15"
+    echo "  $0 /path/to/data --force"
+    echo "  $0 /path/to/data --mem-limit 16.0"
     exit 1
 fi
 
@@ -98,6 +118,23 @@ if [[ -n "$MEM_LIMIT_OVERRIDE" ]]; then
 fi
 
 # ========================================
+# Detect if path is a specific date directory
+# ========================================
+# Extract the basename to check if it's a date
+BASENAME=$(basename "$DATA_PATH")
+
+# Check if the basename matches YYYY-MM-DD pattern
+if [[ "$BASENAME" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "Detected specific date directory: $BASENAME"
+    SPECIFIC_DATE="$BASENAME"
+    # Adjust DATA_PATH to be the parent directory
+    DATA_PATH=$(dirname "$DATA_PATH")
+    echo "Adjusted data path to parent: $DATA_PATH"
+else
+    SPECIFIC_DATE=""
+fi
+
+# ========================================
 # Step 1: Environment setup
 # ========================================
 # Ensure the correct conda environment is activated
@@ -116,7 +153,17 @@ fi
 # - Science image calibration
 # - Cosmic ray removal
 echo "Starting photometric calibration..."
-python src/photocal.py "$DATA_PATH" --mem-limit $MEM_LIMIT_GB $FORCE_FLAG
+
+# Determine the path to pass to photocal.py
+if [[ -n "$SPECIFIC_DATE" ]]; then
+    # Pass the specific date directory
+    PHOTOCAL_PATH="$DATA_PATH/$SPECIFIC_DATE"
+else
+    # Pass the parent data directory
+    PHOTOCAL_PATH="$DATA_PATH"
+fi
+
+python src/photocal.py "$PHOTOCAL_PATH" --mem-limit $MEM_LIMIT_GB $FORCE_FLAG
 
 # ========================================
 # Step 3: Astrometric calibration
@@ -128,19 +175,36 @@ echo "============================================================"
 echo "Running astrometric calibration"
 echo "============================================================"
 
-# Auto-discover dates by finding date directories (YYYY-MM-DD format)
-# Iterate through all subdirectories in the data path
-for date_dir in "$DATA_PATH"/*; do
-    # Skip if not a directory
+# Determine which dates to process
+if [[ -n "$SPECIFIC_DATE" ]]; then
+    # Process only the specific date
+    DATES_TO_PROCESS=("$SPECIFIC_DATE")
+else
+    # Auto-discover all date directories (YYYY-MM-DD format)
+    DATES_TO_PROCESS=()
+    for date_dir in "$DATA_PATH"/*; do
+        # Skip if not a directory
+        if [ ! -d "$date_dir" ]; then
+            continue
+        fi
+
+        # Extract the date from the directory name
+        date=$(basename "$date_dir")
+
+        # Validate that directory name matches YYYY-MM-DD format
+        if [[ "$date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            DATES_TO_PROCESS+=("$date")
+        fi
+    done
+fi
+
+# Process each date
+for date in "${DATES_TO_PROCESS[@]}"; do
+    date_dir="$DATA_PATH/$date"
+
+    # Skip if the date directory doesn't exist
     if [ ! -d "$date_dir" ]; then
-        continue
-    fi
-
-    # Extract the date from the directory name
-    date=$(basename "$date_dir")
-
-    # Validate that directory name matches YYYY-MM-DD format
-    if [[ ! "$date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+        echo "WARNING: Date directory not found: $date_dir"
         continue
     fi
 

@@ -49,21 +49,11 @@ The CCD calibration process follows these steps:
     - Currently only have a mask for bad pixels, not for hot pixels. Hot pixel problems should be mitigated by sigma clipping, but a better method could be valuable
 
 # TODO: 
-- [X] Rewrite combine_darks() and combine_bias() to use lists of CCDData objects instead of ImageFileCollection objects
-- [X] Write loop to combine dark images of a certain exptime
-- [X] Add runtime check to ensure that dark frames match the science exposures
-- [X] Remove the for each exposure time loop in the generate flat function
-- [X] Update export filenames for master biases and master darks
-- [X] Separate out skyflat procedure based on filter
-- [X] Implement skyflat function
-- [X] Either convert all FITS files to e- units, or convert LACosmic routine to use units of ADU
-- [X] Add LACosmic to pipeline
-- [X] Chain everything together
-- [X] Remove hardcoded memory limits
-- [X] Integrate with astrometry.net for astrometric calibration
-- [X] Move uncalibrated header to calibrated header
-- [ ] Write calibration scripts
-- [ ] Move main() to calibrate_night() function
-- [ ] Check for existing master darks and flats
-- [ ] Unit tests
-- [ ] Integrate with MPC API
+- [ ] Check to see if the master darks, flats, biases, etc. already exist. If they do, use them.
+- [X] Refactor to use the path including the date
+- [X] Write example batch scripts
+- [ ] Note that if the darks from the SKYFLAT directory are used, we don't need to do the dark calibration again for the SKYFLAT directory
+- [ ] Assemble calibrated data into KBMOD input format
+- [ ] Figure out ways to accelerate the calibration
+- [ ] Run calibration locally on 2010-03-01
+- [ ] Sketch out pipeline flow chart

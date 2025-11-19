@@ -70,16 +70,19 @@ def generate_flat(flat_dir, mem_limit=2*1024**3):
 
     master_dark = CCDData.read(master_dark_path, unit='adu')
 
-    flat_images = [CCDData.read(f, unit='adu') for f in Path(flat_dir).glob('*_SKYFLAT*.fits')]
+    # Load and process flat images ONE AT A TIME to minimize memory usage
+    flat_files = list(Path(flat_dir).glob('*_SKYFLAT*.fits'))
 
     calibrated_flats = []
-    for flat in flat_images:
+    for flat_file in flat_files:
+        # Load one flat image at a time
+        flat = CCDData.read(flat_file, unit='adu')
         # Subtract master dark
         flat_cal = ccdp.subtract_dark(flat, master_dark, exposure_time='EXPTIME', exposure_unit=u.second)
         calibrated_flats.append(flat_cal)
 
     # Combine the calibrated flat images
-    print(f'Combining flat images for {flat_dir}...')
+    print(f'Combining {len(calibrated_flats)} flat images for {flat_dir}...')
 
     master_flat = ccdp.combine(calibrated_flats, method='median', scale=inv_median, sigma_clip=True, sigma_clip_low_thresh=3, sigma_clip_high_thresh=3, sigma_clip_func=np.nanmedian, sigma_clip_dev_func=mad_std, mem_limit=mem_limit)
 
