@@ -33,6 +33,7 @@ from astropy.utils.exceptions import AstropyWarning
 warnings.simplefilter('ignore', category=AstropyWarning)
 
 from src.calibration import image_combine, generate_mask, remove_cosmic_rays, combine_bias, combine_darks, generate_flat, calibrate_science_image
+from src.utils import print_memory_usage
 import argparse
 
 def main():
@@ -73,6 +74,8 @@ def main():
     start_time = time.time()
     data_path = args.data_path
     mem_limit = int(args.mem_limit * 1024**3)  # Convert GB to bytes
+
+    print_memory_usage("Program start")
 
     # ========================================
     # Step 1: Auto-discover date directories
@@ -183,6 +186,8 @@ def main():
 
         # Flag to track whether we can perform dark correction
         skip_science_dark_correction = False
+        # Flag to track if science and flat darks are shared (to avoid duplicate work)
+        shared_dark_files = False
 
         # Fallback logic for science dark frames
         if not science_dark_files and flat_dark_files:
@@ -205,6 +210,7 @@ def main():
                 print(f"Exposure times match! Science: {science_exposure_times}s, Flat darks: {flat_dark_exposure_times}s")
                 print(f"Using DARK files from flat directory for science calibration")
                 science_dark_files = flat_dark_files
+                shared_dark_files = True
             else:
                 print(f"WARNING: Exposure time mismatch!")
                 print(f"  Science exposure times: {science_exposure_times}s")
@@ -272,6 +278,7 @@ def main():
                 print(f"Exposure times compatible! Flat: {flat_exposure_times}s, Science darks: {science_dark_exposure_times}s")
                 print(f"Using DARK files from science directory for flat calibration")
                 flat_dark_files = science_dark_files
+                shared_dark_files = True
             else:
                 print(f"WARNING: Exposure time mismatch for flat calibration")
                 print(f"  Flat exposure times: {flat_exposure_times}s")
@@ -309,6 +316,13 @@ def main():
 
         Path(cal_path).mkdir(parents=True, exist_ok=True)
 
+        # Define paths for cached master calibration frames
+        master_bias_path = Path(cal_path) / f'{date}_MASTERBIAS.fits'
+        master_dark_science_path = Path(cal_path) / f'{date}_MASTERDARK.fits'
+        master_dark_flat_path = Path(cal_path) / f'{date}_MASTERDARK_FLAT.fits'
+        master_flat_path = Path(cal_path) / f'{date}_MASTERFLAT.fits'
+        mask_path = Path(cal_path) / f'{date}_MASK.fits'
+
         # ========================================
         # Step 3: Create master calibration frames
         # ========================================
@@ -316,44 +330,114 @@ def main():
         # Create master bias (only if using bias correction as fallback)
         science_master_bias = None
         if use_bias_correction and bias_files_for_science:
-            print(f"\nCreating master bias from {len(bias_files_for_science)} bias frames...")
-            bias_images = [CCDData.read(f, unit='adu') for f in bias_files_for_science]
-            science_master_bias = combine_bias(bias_images, bias_dir_for_science, mem_limit=mem_limit)
-            print(f"Master bias created successfully")
+            if master_bias_path.exists() and not args.force:
+                print(f"\nLoading existing master bias from {master_bias_path}")
+                science_master_bias = CCDData.read(master_bias_path)
+                print_memory_usage("After loading master bias")
+            else:
+                print(f"\nCreating master bias from {len(bias_files_for_science)} bias frames...")
+                bias_images = [CCDData.read(f, unit='adu') for f in bias_files_for_science]
+                science_master_bias = combine_bias(bias_images, bias_dir_for_science, mem_limit=mem_limit)
+                science_master_bias.write(master_bias_path, overwrite=True)
+                print(f"Master bias created and saved to {master_bias_path}")
+                print_memory_usage("After master bias creation")
 
-        # Create master dark for flats (if available)
+        # Create master dark frames
+        # If dark files are shared between science and flat, create only once
         flat_master_dark = None
-        if flat_dark_files:
-            flat_dark_images = [CCDData.read(f, unit='adu') for f in flat_dark_files]
-            flat_dark_exposure_times = np.unique([dark.header['EXPTIME'] for dark in flat_dark_images])
-            print(f'Flat dark exposure times: {flat_dark_exposure_times}')
-
-            if len(flat_dark_exposure_times) > 1:
-                print("Warning: Multiple exposure times found in flat dark images. Ensure they are consistent.")
-
-            flat_master_dark = combine_darks(flat_dark_images, flat_dir, mem_limit=mem_limit)
-
-        # Create master dark for science images (only if not skipping dark correction)
         science_master_dark = None
-        if not skip_science_dark_correction and science_dark_files:
-            science_dark_images = [CCDData.read(f, unit='adu') for f in science_dark_files]
-            science_dark_exposure_times = np.unique([dark.header['EXPTIME'] for dark in science_dark_images])
-            print(f'Science dark exposure times: {science_dark_exposure_times}')
 
-            if len(science_dark_exposure_times) > 1:
-                print("Warning: Multiple exposure times found in science dark images. Ensure they are consistent.")
+        if shared_dark_files and flat_dark_files:
+            # Dark files are shared - create once and use for both
+            # Check if either cached file exists
+            if (master_dark_science_path.exists() or master_dark_flat_path.exists()) and not args.force:
+                # Load from whichever exists
+                if master_dark_science_path.exists():
+                    print(f"\nLoading existing shared master dark from {master_dark_science_path}")
+                    shared_master_dark = CCDData.read(master_dark_science_path)
+                else:
+                    print(f"\nLoading existing shared master dark from {master_dark_flat_path}")
+                    shared_master_dark = CCDData.read(master_dark_flat_path)
+                print_memory_usage("After loading shared master dark")
+            else:
+                dark_images = [CCDData.read(f, unit='adu') for f in flat_dark_files]
+                dark_exposure_times = np.unique([dark.header['EXPTIME'] for dark in dark_images])
+                print(f'Shared dark exposure times: {dark_exposure_times}')
 
-            science_master_dark = combine_darks(science_dark_images, science_dir, mem_limit=mem_limit)
-        elif skip_science_dark_correction:
-            print("Skipping master dark creation for science images (no matching darks available)")
+                if len(dark_exposure_times) > 1:
+                    print("Warning: Multiple exposure times found in dark images. Ensure they are consistent.")
+
+                shared_master_dark = combine_darks(dark_images, flat_dir if flat_dark_files else science_dir, mem_limit=mem_limit)
+                # Save to both locations
+                shared_master_dark.write(master_dark_science_path, overwrite=True)
+                shared_master_dark.write(master_dark_flat_path, overwrite=True)
+                print(f"Shared master dark saved to {master_dark_science_path} and {master_dark_flat_path}")
+                print_memory_usage("After shared master dark creation")
+
+            # Use the same master dark for both
+            flat_master_dark = shared_master_dark
+            science_master_dark = shared_master_dark
+        else:
+            # Dark files are separate - create each independently
+            # Create master dark for flats (if available)
+            if flat_dark_files:
+                if master_dark_flat_path.exists() and not args.force:
+                    print(f"\nLoading existing flat master dark from {master_dark_flat_path}")
+                    flat_master_dark = CCDData.read(master_dark_flat_path)
+                    print_memory_usage("After loading flat master dark")
+                else:
+                    flat_dark_images = [CCDData.read(f, unit='adu') for f in flat_dark_files]
+                    flat_dark_exposure_times = np.unique([dark.header['EXPTIME'] for dark in flat_dark_images])
+                    print(f'Flat dark exposure times: {flat_dark_exposure_times}')
+
+                    if len(flat_dark_exposure_times) > 1:
+                        print("Warning: Multiple exposure times found in flat dark images. Ensure they are consistent.")
+
+                    flat_master_dark = combine_darks(flat_dark_images, flat_dir, mem_limit=mem_limit)
+                    flat_master_dark.write(master_dark_flat_path, overwrite=True)
+                    print(f"Flat master dark saved to {master_dark_flat_path}")
+                    print_memory_usage("After flat master dark creation")
+
+            # Create master dark for science images (only if not skipping dark correction)
+            if not skip_science_dark_correction and science_dark_files:
+                if master_dark_science_path.exists() and not args.force:
+                    print(f"\nLoading existing science master dark from {master_dark_science_path}")
+                    science_master_dark = CCDData.read(master_dark_science_path)
+                    print_memory_usage("After loading science master dark")
+                else:
+                    science_dark_images = [CCDData.read(f, unit='adu') for f in science_dark_files]
+                    science_dark_exposure_times = np.unique([dark.header['EXPTIME'] for dark in science_dark_images])
+                    print(f'Science dark exposure times: {science_dark_exposure_times}')
+
+                    if len(science_dark_exposure_times) > 1:
+                        print("Warning: Multiple exposure times found in science dark images. Ensure they are consistent.")
+
+                    science_master_dark = combine_darks(science_dark_images, science_dir, mem_limit=mem_limit)
+                    science_master_dark.write(master_dark_science_path, overwrite=True)
+                    print(f"Science master dark saved to {master_dark_science_path}")
+                    print_memory_usage("After science master dark creation")
+            elif skip_science_dark_correction:
+                print("Skipping master dark creation for science images (no matching darks available)")
 
         # Generate master flat field from sky flats (only if not skipping flat correction)
         flat_master = None
         mask = None
         if not skip_flat_correction:
-            flat_master = generate_flat(flat_dir, mem_limit=mem_limit)
-            # Create a pixel mask to flag bad pixels
-            mask = generate_mask(flat_dir)
+            if master_flat_path.exists() and mask_path.exists() and not args.force:
+                print(f"\nLoading existing master flat from {master_flat_path}")
+                flat_master = CCDData.read(master_flat_path)
+                print(f"Loading existing mask from {mask_path}")
+                mask = CCDData.read(mask_path)
+                print_memory_usage("After loading master flat and mask")
+            else:
+                flat_master = generate_flat(flat_dir, mem_limit=mem_limit)
+                flat_master.write(master_flat_path, overwrite=True)
+                print(f"Master flat saved to {master_flat_path}")
+                # Create a pixel mask to flag bad pixels
+                mask = generate_mask(flat_dir)
+                mask.write(mask_path, overwrite=True)
+                print(f"Mask saved to {mask_path}")
+                print_memory_usage("After master flat generation")
         else:
             print("Skipping master flat generation (no SKYFLAT directory)")
 
@@ -386,8 +470,13 @@ def main():
             calibrated_science_image.write(output_filename, overwrite=True)
             print(f'({idx}/{total_images}) Saved calibrated image to {output_filename}')
 
+            # Print memory usage periodically (every 10 images)
+            if idx % 10 == 0 or idx == total_images:
+                print_memory_usage(f"After processing {idx}/{total_images} images")
+
     end_time = time.time()
     print(f"Total processing time: {end_time - start_time:.2f} seconds")
+    print_memory_usage("Program end")
 
 # Entry point
 if __name__ == '__main__':

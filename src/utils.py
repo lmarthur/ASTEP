@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 from astropy.visualization import hist
 import astropy.units as u
+import psutil
+import os
 
 def convert_to_electrons(imagecollection, gain):
     """
@@ -84,5 +86,9 @@ def histogram(image, path):
     plt.savefig(path)
     plt.close()  # Close the plot
 
-
+def print_memory_usage(label=""):
+    """Print current memory usage of the process."""
+    process = psutil.Process(os.getpid())
+    mem_mb = process.memory_info().rss / 1024 / 1024
+    print(f"[Memory] {label}: {mem_mb:.1f} MB")
 
